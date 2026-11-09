@@ -1179,6 +1179,31 @@ def test_ebm_remove_terms():
     assert len(clf.bin_weights_) == 2
 
 
+def test_ebm_explain_global_without_standard_deviations():
+    # monotonize drops the standard deviations of the monotonized term, and
+    # models without interactions fall back to the main effects score range.
+    data = synthetic_regression()
+    X = data["full"]["X"]
+    y = data["full"]["y"]
+
+    clf = ExplainableBoostingRegressor(n_jobs=-2, interactions=0)
+    clf.fit(X, y)
+    clf.monotonize(0)
+
+    clf_global = clf.explain_global()
+    specific = [clf_global.data(i) for i in range(len(clf.term_features_))]
+    assert len(specific) == 4
+    assert all(data_dict["type"] == "univariate" for data_dict in specific)
+    # All terms share the main effects range since there are no interactions
+    assert len({data_dict["scores_range"] for data_dict in specific}) == 1
+    assert specific[0]["upper_bounds"] is None
+    assert specific[0]["lower_bounds"] is None
+    for data_dict in specific[1:]:
+        assert data_dict["upper_bounds"] is not None
+        assert data_dict["lower_bounds"] is not None
+        assert "global_scores_range" not in data_dict
+
+
 def test_ebm_scale():
     data = synthetic_regression()
     X = data["full"]["X"]
